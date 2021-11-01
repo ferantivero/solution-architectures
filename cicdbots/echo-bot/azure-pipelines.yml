@@ -58,7 +58,7 @@ stages:
       displayName: 'Publish EchoBot app Artifact'
       inputs:
         targetPath: '$(Build.ArtifactStagingDirectory)/'
-        archiveFilePatterns: '**/*.zip'
+        archiveFilePatterns: '*.zip'
         artifactName: 'drop-$(Build.BuildId)'
 
 - stage: Deploy
