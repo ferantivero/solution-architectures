@@ -1,0 +1,113 @@
+trigger:
+  branches:
+    include:
+    - main
+  paths:
+    include:
+    - cicdbots/echo-bot
+
+stages:
+- stage: Build
+  jobs:
+  - job: EchoBotBuild
+    displayName: EchoBot Continous Integration
+    pool:
+      vmImage: 'ubuntu-20.04'
+    continueOnError: false
+    steps:
+    - task: DotNetCoreCLI@2
+      displayName: Restore
+      inputs:
+        command: restore
+        projects: cicdbots/echo-bot/echo-bot.csproj
+
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        projects: cicdbots/echo-bot/echo-bot.csproj
+        arguments: '--configuration release'
+
+    - task: DotNetCoreCLI@2
+      displayName: Publish
+      inputs:
+        command: publish
+        publishWebProjects: false
+        workingDirectory: cicdbots/echo-bot
+        arguments: '--configuration release --output "$(Build.ArtifactStagingDirectory)" --no-restore'
+        zipAfterPublish: false
+
+    - task: ArchiveFiles@2
+      displayName: 'Archive EchoBot app'
+      inputs:
+        rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: '$(Build.ArtifactStagingDirectory)/echo-bot.zip'
+
+    - script: |
+        zip -j $(Build.ArtifactStagingDirectory)/manifest.zip cicdbots/echo-bot/manifest.json cicdbots/echo-bot/color.png cicdbots/echo-bot/outline.png
+      displayName: 'Archive EchoBot manififest'
+
+    - script: |
+        response=$(curl --fail --silent --location --request POST 'https://packageacceptance.omex.office.net/api/check?culture=en&mode=verifyandextract&packageType=msteams&verbose=true' --header 'Content-Type: application/zip' --data-binary @/manifest.zip)
+        [[  != "" ]] && echo -e "\033[1;32m## [Passed] Package validation Ok \033[0m" || >&2 echo -e "\033[0;31m## [Fail] Package validation Fail: expected Accepted status - actual \033[0m"
+      displayName: 'Validate the Teams manifest'
+      failOnStderr: true
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish EchoBot app Artifact'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/*.zip'
+        artifactName: 'drop-$(Build.BuildId)'
+
+
+    - task: ArchiveFiles@2
+      displayName: 'Archive EchoBot app'
+      inputs:
+        rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: '$(Build.ArtifactStagingDirectory)/echo-bot.zip'
+
+    - script: |
+        zip -j $(Build.ArtifactStagingDirectory)/manifest.zip cicdbots/echo-bot/manifest.json cicdbots/echo-bot/color.png cicdbots/echo-bot/outline.png
+      displayName: 'Archive EchoBot manififest'
+
+    - script: |
+        response=$(curl --fail --silent --location --request POST 'https://packageacceptance.omex.office.net/api/check?culture=en&mode=verifyandextract&packageType=msteams&verbose=true' --header 'Content-Type: application/zip' --data-binary @$(Build.ArtifactStagingDirectory)/manifest.zip)
+        [[  != "" ]] && echo -e "\033[1;32m## [Passed] Package validation Ok \033[0m" || >&2 echo -e "\033[0;31m## [Fail] Package validation Fail: expected Accepted status - actual \033[0m"
+      displayName: 'Validate the Teams manifest'
+      failOnStderr: true
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish EchoBot app Artifact'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/*.zip'
+        artifactName: 'drop-$(Build.BuildId)'
+
+
+- stage: Deploy
+  dependsOn:
+  - Build
+  jobs:
+  - deployment: EchoBotDeploy
+    displayName: EchoBot Continous Deployment
+    pool:
+      vmImage: 'ubuntu-20.04'
+    environment: 'echobot-prod'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureRmWebAppDeployment@4
+            inputs:
+              appType: webApp
+              ConnectionType: AzureRM
+              ConnectedServiceName: 'ARMServiceConnection'
+              ResourceGroupName: 'rg-cicd-bots'
+              WebAppName: 'appsvc-echo-bot-4iizn07d1jTfn'
+              DeploymentType: runFromZip
+              enableCustomDeployment: true
+              packageForLinux: '$(Pipeline.Workspace)/drop-$(Build.BuildId)/echo-bot.zip'
+              deployToSlotOrASE: true
+              SlotName: 'production'
