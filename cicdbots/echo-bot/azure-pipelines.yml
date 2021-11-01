@@ -42,10 +42,10 @@ stages:
         rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
         includeRootFolder: false
         archiveType: zip
-        archiveFile: '$(Build.ArtifactStagingDirectory)/echo-bot.zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/drop/echo-bot.zip'
 
     - script: |
-        zip -j $(Build.ArtifactStagingDirectory)/manifest.zip cicdbots/echo-bot/manifest.json cicdbots/echo-bot/color.png cicdbots/echo-bot/outline.png
+        zip -j $(Build.ArtifactStagingDirectory)/drop/manifest.zip cicdbots/echo-bot/manifest.json cicdbots/echo-bot/color.png cicdbots/echo-bot/outline.png
       displayName: 'Archive EchoBot manififest'
 
     - script: |
@@ -57,7 +57,7 @@ stages:
     - task: PublishPipelineArtifact@1
       displayName: 'Publish EchoBot app Artifact'
       inputs:
-        targetPath: '$(Build.ArtifactStagingDirectory)/'
+        targetPath: '$(Build.ArtifactStagingDirectory)/drop'
         archiveFilePatterns: '*.zip'
         artifactName: 'drop-$(Build.BuildId)'
 
